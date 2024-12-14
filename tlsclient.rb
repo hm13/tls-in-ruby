@@ -1,0 +1,58 @@
+require "socket"
+
+module TLSConnection
+  def self.open(host, socket)
+    ext_10 = # supported_groups
+      [10].pack('n') +                                   # extension_type
+      [4].pack('n') + [2].pack('n') + [0x0017].pack('n') # extension_data
+    ext_13 = # signature_algorithms
+      [13].pack('n') +                                                       # extension_type
+      [8].pack('n') + [6].pack('n') + [0x0401, 0x0804, 0x0403].pack('n n n') # extension_data
+    ext_43 = # supported_versions
+      [43].pack('n') +                            # extension_type
+      [3].pack('n') + "\x02" + [0x0304].pack('n') # extension_data
+    ext_51 = # key_share
+      [51].pack('n') +                 # extension_type
+      [2].pack('n') + [0x00].pack('n') # extension_data
+
+    extensions =
+      [ext_10.length + ext_13.length + ext_43.length + ext_51.length].pack('n') +
+      ext_10 + ext_13 + ext_43 + ext_51
+    
+    clienthello =
+      [0x0303].pack('n') +            # legacy_version
+      "\x00"*32 +                     # random
+      "\x00" +                        # legacy_session_id
+      [0x0002, 0x1301].pack('n n') +  # cipher_suites
+      [0x01, 0x00].pack('C C') +      # legacy_compression_methods
+      extensions                      # extensions
+    
+    handshake =
+      "\x01" +                                 # msg_type
+      [0x00, clienthello.length].pack('C n') + # length (uint24)
+      clienthello                              # clienthello
+    
+    record =
+      "\x16" +                        # type
+      [0x0301].pack('n') +            # legacy_record_version
+      [handshake.length].pack('n') +  # length
+      handshake                       # fragment
+
+    socket.write(record)
+    return true
+  end
+end
+
+s = TCPSocket.open("example.com", 443)
+
+TLSConnection.open("example.com", s)
+
+#s.write("GET / HTTP/1.1" + "\r\n".b +
+#        "Host: example.com" + "\r\n".b +
+#        "\r\n".b)
+
+while line = s.gets
+  puts line
+end
+
+s.close()
