@@ -1,10 +1,17 @@
 require "socket"
 
 module TLSConnection
+
   def self.open(host, socket)
+    client_shares =
+      [38].pack('n') +
+      [36].pack('n') +
+      [0x001d].pack('n') +         # group
+      [32].pack('n') +  "\x11"*32  # key_exchange<1..2^16-1>
+
     ext_10 = # supported_groups
       [10].pack('n') +                                   # extension_type
-      [4].pack('n') + [2].pack('n') + [0x0017].pack('n') # extension_data
+      [4].pack('n') + [2].pack('n') + [0x001d].pack('n') # extension_data
     ext_13 = # signature_algorithms
       [13].pack('n') +                                                       # extension_type
       [8].pack('n') + [6].pack('n') + [0x0401, 0x0804, 0x0403].pack('n n n') # extension_data
@@ -12,8 +19,8 @@ module TLSConnection
       [43].pack('n') +                            # extension_type
       [3].pack('n') + "\x02" + [0x0304].pack('n') # extension_data
     ext_51 = # key_share
-      [51].pack('n') +                 # extension_type
-      [2].pack('n') + [0x00].pack('n') # extension_data
+      [51].pack('n') +  # extension_type
+      client_shares     # extension_data
 
     extensions =
       [ext_10.length + ext_13.length + ext_43.length + ext_51.length].pack('n') +
@@ -23,7 +30,7 @@ module TLSConnection
       [0x0303].pack('n') +            # legacy_version
       "\x00"*32 +                     # random
       "\x00" +                        # legacy_session_id
-      [0x0002, 0x1301].pack('n n') +  # cipher_suites
+      [0x0002, 0x1301].pack('n n') +  # cipher_suites (TLS_AES_128_GCM_SHA256)
       [0x01, 0x00].pack('C C') +      # legacy_compression_methods
       extensions                      # extensions
     
