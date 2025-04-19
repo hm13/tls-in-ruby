@@ -1,5 +1,14 @@
 require "socket"
 
+def getshex(byte, socket)
+  ret = ""
+  byte.times do
+    ret = ret + sprintf("%02x", socket.getbyte)
+  end
+  "0x" + ret
+end
+
+
 module TLSConnection
 
   def self.open(host, socket)
@@ -54,12 +63,10 @@ s = TCPSocket.open("example.com", 443)
 
 TLSConnection.open("example.com", s)
 
-#s.write("GET / HTTP/1.1" + "\r\n".b +
-#        "Host: example.com" + "\r\n".b +
-#        "\r\n".b)
-
-while line = s.gets
-  puts line
-end
+puts "type: " + getshex(1, s)
+puts "legacy_record_version: " + getshex(2, s)
+tmp = getshex(2, s)
+puts "length: " + tmp
+puts "fragment: " + getshex(tmp.hex, s)
 
 s.close()
