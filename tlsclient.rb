@@ -1,17 +1,25 @@
 require "socket"
 
-def getshex(byte, socket)
-  ret = ""
-  byte.times do
-    ret = ret + sprintf("%02x", socket.getbyte)
+module Util
+  def Util.read_record(socket)
+    puts "type: " + getshex(1, socket)
+    puts "legacy_record_version: " + getshex(2, socket)
+    tmp = getshex(2, socket)
+    puts "length: " + tmp
+    puts "fragment: " + getshex(tmp.hex, socket)
   end
-  "0x" + ret
+
+  def Util.getshex(byte, socket)
+    ret = ""
+    byte.times do
+      ret = ret + sprintf("%02x", socket.getbyte)
+    end
+    "0x" + ret
+  end
 end
 
-
-module TLSConnection
-
-  def self.open(host, socket)
+module Handshake
+  def Handshake.createClientHelloMessage()
     client_shares =
       [38].pack('n') +
       [36].pack('n') +
@@ -42,31 +50,47 @@ module TLSConnection
       [0x0002, 0x1301].pack('n n') +  # cipher_suites (TLS_AES_128_GCM_SHA256)
       [0x01, 0x00].pack('C C') +      # legacy_compression_methods
       extensions                      # extensions
-    
+
+    clienthello
+  end
+end
+
+class TLS
+  def initialize()
+    connect()
+  end
+
+  def connect()
+    @socket = TCPSocket.open("example.com", 443)
+
+    clienthello = Handshake.createClientHelloMessage
+
     handshake =
       "\x01" +                                 # msg_type
       [0x00, clienthello.length].pack('C n') + # length (uint24)
       clienthello                              # clienthello
-    
+
     record =
       "\x16" +                        # type
       [0x0301].pack('n') +            # legacy_record_version
       [handshake.length].pack('n') +  # length
       handshake                       # fragment
 
-    socket.write(record)
-    return true
+    @socket.write(record)
+
+    Util.read_record(@socket)
+
+    # TODO: get connection state
+  end
+
+  def write(data)
+    # TODO: Encrypt
+  end
+
+  def read()
+    # TODO: Decrypt
   end
 end
 
-s = TCPSocket.open("example.com", 443)
 
-TLSConnection.open("example.com", s)
-
-puts "type: " + getshex(1, s)
-puts "legacy_record_version: " + getshex(2, s)
-tmp = getshex(2, s)
-puts "length: " + tmp
-puts "fragment: " + getshex(tmp.hex, s)
-
-s.close()
+tls = TLS.new()
