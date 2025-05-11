@@ -1,20 +1,12 @@
 require "socket"
 
 module Util
-  def Util.read_record(socket)
-    puts "type: " + getshex(1, socket)
-    puts "legacy_record_version: " + getshex(2, socket)
-    tmp = getshex(2, socket)
-    puts "length: " + tmp
-    puts "fragment: " + getshex(tmp.hex, socket)
-  end
-
-  def Util.getshex(byte, socket)
+  def Util.bytes_to_string(bytes)
     ret = ""
-    byte.times do
-      ret = ret + sprintf("%02x", socket.getbyte)
+    bytes.each_byte do |b|
+      ret = ret + sprintf("%02x", b)
     end
-    "0x" + ret
+    ret
   end
 
   def Util.to_binary(str)
@@ -46,6 +38,34 @@ module Util
     end
 
     return ret
+  end
+
+  def Util.headtail(m, bytes)
+    return m[0, bytes * 2], m[(bytes * 2)..]
+  end
+
+  def Util.set_hash(hash, message)
+    unless hash.is_a?(Hash)
+      return
+    end
+
+    hash.each do |k, v|
+      if v.is_a?(Hash)
+        Util.set_hash(v, message)
+      elsif v.is_a?(String)
+      elsif v.is_a?(Symbol)
+        hash[k] = hash[v].to_i(16)
+        Util.set_hash(hash, message)
+      else
+        head, tail = Util.headtail(message, v)
+        if k[/_vl$/] then
+          hash[k], tail = Util.headtail(tail, head.to_i(16))
+        else
+          hash[k] = head
+        end
+        message = tail
+      end
+    end
   end
 end
 
@@ -115,6 +135,42 @@ module Handshake
       exit
     end
   end
+
+  def Handshake.readServerHello(message)
+    serverhello_template = {
+      :legacy_version => 2,
+      :random => 32,
+      :legacy_session_id_vl => 1,
+      :cipher_suite => 2,
+      :legacy_compressiom_method => 1,
+      :extensions_vl => 3
+    }
+
+    Util.set_hash(serverhello_template, message)
+  end
+
+  def Handshake.readHandshake(fragment)
+    handshake_template = {
+      :msg_type => 1,
+      :length => 3,
+      :message => :length
+    }
+
+    Util.set_hash(handshake_template, fragment)
+  end
+end
+
+class Record
+  def Record.readRecord(message)
+    record_template = {
+      :type => 1,
+      :legacy_record_version => 2,
+      :length => 2,
+      :fragment => :length
+    }
+
+    Util.set_hash(record_template, message)
+  end
 end
 
 class TLS
@@ -136,7 +192,25 @@ class TLS
 
     @socket.write(Util.to_binary(Util.to_string(record)))
 
-    Util.read_record(@socket)
+
+    message = Util.bytes_to_string(@socket.recv(1024))
+
+    record = Record.readRecord(message)
+    pp "record:", record
+
+    if record[:type].hex == 22 then # handshake
+      handshake = Handshake.readHandshake(record[:fragment])
+      pp "handshake:", handshake
+
+      if handshake[:msg_type].hex == 2 then # server_hello
+        server_hello = Handshake.readServerHello(handshake[:message])
+        pp "server_hello:", server_hello
+      else
+        raise "Not Implemented"
+      end
+    else
+      raise "Not Implemented"
+    end
 
     # TODO: get connection state
   end

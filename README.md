@@ -6,10 +6,14 @@ Currently, **work in progress**.
 # Running
 ```
 $ ruby tlsclient.rb
-type: 0x16
-legacy_record_version: 0x0303
-length: 0x005a
-fragment: 0x02000056030395d4114d09f38bb56b1c2bdc45518223a072bab8cd7dc7cbd811de84780ed19b00130100002e002b0002030400330024001d0020a3daae8828f2eb1c3232cb69c7bb05915efabd0d2a9f50e744086e393b1d8b60
+...
+"server_hello:"
+{:legacy_version=>"0303",
+ :random=>"5f3a602dda001778f159b921c74ab60697f82a71e3421c19f3fc45054db6f001",
+ :legacy_session_id_vl=>"",
+ :cipher_suite=>"1301",
+ :legacy_compressiom_method=>"00",
+ :extensions_vl=>"2b0002030400330024001d00209fb833a785abdda482d4d2015cb7228d9bc570fd14d9a29d141f9112e2066171"}
 ```
 Currently, this command sends a Client Hello message to `example.com` and receives a Server Hello message and outputs into the standard output.
 ![tlsclient_serverhello](https://github.com/user-attachments/assets/62876060-ce78-49f2-b333-80053520bd75)
