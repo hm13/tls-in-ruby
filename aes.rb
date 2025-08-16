@@ -24,21 +24,7 @@ $state = [
   [0x0, 0x0, 0x0, 0x0]
 ]
 
-def keyExpantion()
-  puts "keyExpantion"
-  # WIP
-
-  return [
-    [0x0, 0x2, 0x0, 0x0],
-    [0x0, 0x2, 0x0, 0x0],
-    [0x0, 0x0, 0x0, 0x0],
-    [0x0, 0x0, 0x0, 0x0]
-  ]
-end
-
 def addRoundKey(key)
-  puts "addRoundKey"
-
   4.times do |i|
     4.times do |j|
       $state[i][j] = $state[i][j] ^ key[i][j]
@@ -47,8 +33,6 @@ def addRoundKey(key)
 end
 
 def subBytes()
-  puts "subBytes"
-
   4.times do |i|
     4.times do |j|
       byte = $state[i][j]
@@ -60,50 +44,166 @@ def subBytes()
 end
 
 def shiftRows()
-  puts "shiftRows"
-
   $state[0].rotate!(0)
-  $state[1].rotate!(-1)
-  $state[2].rotate!(-2)
-  $state[3].rotate!(-3)
+  $state[1].rotate!(1)
+  $state[2].rotate!(2)
+  $state[3].rotate!(3)
+end
+
+def multPoly(byte_a, byte_b)
+  # Bytes are interpreted to polynomials.
+  # - e.g. {00010011} => (x^4 + x + 1)
+
+  # Expand multiplication.
+  # - e.g. (x^4 + x + 1)(x + 1) => (x^5 + x^2 + x) + (x^4 + x + 1)
+  expressions = []
+  (1..8).each do |i|
+    if byte_b & 0x01 != 0
+      expressions.append(byte_a << (i-1))
+    end
+    byte_b = byte_b >> 1
+  end
+
+  # Caluclate sum of expressions
+  res = 0
+  expressions.each do |e|
+    # Summation equals to XOR in polynomial interpretation.
+    res = res ^ e
+  end
+
+  res
+end
+
+def mod011B(bytes)
+  # Bytes are interpreted to polynomials.
+  # - e.g. {00010011} => (x^4 + x + 1)
+
+  # Data in bits (for reference)
+  # - {00011010 10101010} : bytes (an example)
+  # - {00000001 00011011} : 0x011B
+
+  # Shift and add until "bytes" is less than 0x011B
+  (0..7).reverse_each do |i|
+    if bytes & (0x0100 << i) != 0
+      bytes = bytes ^ (0x011B << i)
+    end
+  end
+
+  bytes
 end
 
 def mixColumns()
-  puts "mixColumns"
+  tmp = [[], [], [], []]
 
-  # WIP
+  (0..3).each do |j|
+    b0 = $state[0][j]
+    b1 = $state[1][j]
+    b2 = $state[2][j]
+    b3 = $state[3][j]
+
+    tmp[0][j] = mod011B(multPoly(0x02, b0)) ^ mod011B(multPoly(0x03, b1)) ^ b2 ^ b3
+    tmp[1][j] = b0 ^ mod011B(multPoly(0x02, b1)) ^ mod011B(multPoly(0x03, b2)) ^ b3
+    tmp[2][j] = b0 ^ b1 ^ mod011B(multPoly(0x02, b2)) ^ mod011B(multPoly(0x03, b3))
+    tmp[3][j] = mod011B(multPoly(0x03, b0)) ^ b1 ^ b2 ^ mod011B(multPoly(0x02, b3))
+  end
+
+  (0..3).each do |i|
+    (0..3).each do |j|
+      $state[i][j] = tmp[i][j]
+    end
+  end
 end
 
+def keyExpansion(key)
+  def subWord(word)
+    ret = []
+    4.times do |i|
+      byte = word[i]
+      row = byte >> 4
+      col = byte & 0x0f
+      ret.append(SBOX[row][col])
+    end
+    ret
+  end
+
+  def rotWord(word)
+    word.rotate!(1)
+  end
+
+  def rcon(i)
+    [mod011B(0x02 << (i-2)), 0x00, 0x00, 0x00]
+  end
+
+  def wordXOR(wa, wb)
+    [wa[0] ^ wb[0], wa[1] ^ wb[1], wa[2] ^ wb[2], wa[3] ^ wb[3]]
+  end
+
+  w = []
+
+  (0..3).each do |i|
+    w[i] = [key[0][i], key[1][i], key[2][i], key[3][i]]
+  end
+
+  (4..43).each do |i|
+    temp = [w[i-1][0], w[i-1][1], w[i-1][2], w[i-1][3]]
+    if i % 4 == 0 then
+      temp = wordXOR(subWord(rotWord(temp)), rcon(i/4))
+    end
+    w[i] = wordXOR(w[i-4], temp)
+  end
+
+  keys = []
+  (0..10).each do |k|
+    key = [[], [], [], []]
+    (0..3).each do |i|
+      (0..3).each do |j|
+        key[i][j] = w[k*4 + j][i]
+      end
+    end
+    keys.append(key)
+  end
+  keys
+end
 
 def encrypt(key, plaintext)
-  puts "encrypt"
+  $state = plaintext
 
-  # WIP
-  $state[0][1] = 1
-  $state[2][1] = 1
+  keys = keyExpansion(key)
 
-  key = keyExpantion()
-
-  addRoundKey(key)
+  addRoundKey(keys[0])
 
   # 9 rounds
-  9.times do
+  (1..9).each do |i|
     subBytes()
     shiftRows()
     mixColumns()
-    addRoundKey(key)
+    addRoundKey(keys[i])
   end
 
   # Final round (without mixColumns)
   subBytes()
   shiftRows()
-  addRoundKey(key)
+  addRoundKey(keys[10])
+
+  # p $state.map{|r|r.map{|c|c.to_s(16)}}
 end
 
+plaintext = [
+  [0x32, 0x88, 0x31, 0xe0],
+  [0x43, 0x5a, 0x31, 0x37],
+  [0xf6, 0x30, 0x98, 0x07],
+  [0xa8, 0x8d, 0xa2, 0x34]
+]
+
+key = [
+  [0x2b, 0x28, 0xab, 0x09],
+  [0x7e, 0xae, 0xf7, 0xcf],
+  [0x15, 0xd2, 0x15, 0x4f],
+  [0x16, 0xa6, 0x88, 0x3c]
+]
+
+encrypt(key,plaintext)
 
 def decrypt(key, cyphertext)
   # WIP
 end
-
-# WIP
-encrypt("","")
