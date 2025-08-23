@@ -217,7 +217,7 @@ def keyExpansion(key)
 end
 
 def encrypt(key, plaintext)
-  $state = plaintext
+  $state = Marshal.load(Marshal.dump(plaintext))
 
   keys = keyExpansion(key)
 
@@ -235,10 +235,12 @@ def encrypt(key, plaintext)
   subBytes()
   shiftRows()
   addRoundKey(keys[10])
+
+  $state
 end
 
 def decrypt(key, cyphertext)
-  $state = cyphertext
+  $state = Marshal.load(Marshal.dump(cyphertext))
 
   keys = keyExpansion(key)
 
@@ -256,6 +258,8 @@ def decrypt(key, cyphertext)
   invShiftRows()
   invSubBytes()
   addRoundKey(keys[0])
+
+  $state
 end
 
 def test()
@@ -273,12 +277,13 @@ def test()
     [0x16, 0xa6, 0x88, 0x3c]
   ]
 
-  encrypt(key,plaintext)
-  p $state.map{|r|r.map{|c|c.to_s(16)}}
+  ret = encrypt(key,plaintext)
+  puts "TEST: #{ret.map{|r|r.map{|c|c.to_s(16)}}}"
+  # => [["39", "2", "dc", "19"], ["25", "dc", "11", "6a"], ["84", "9", "85", "b"], ["1d", "fb", "97", "32"]]
 
-  decrypt(key, $state)
-  p $state.map{|r|r.map{|c|c.to_s(16)}}
-
+  ret = decrypt(key, ret)
+  puts "TEST: #{ret.map{|r|r.map{|c|c.to_s(16)}}}"
+  # => [["32", "88", "31", "e0"], ["43", "5a", "31", "37"], ["f6", "30", "98", "7"], ["a8", "8d", "a2", "34"]]
 end
 
 test()
