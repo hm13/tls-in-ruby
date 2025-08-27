@@ -132,7 +132,11 @@ end
 # a: additional authenticated data
 def gcm_ae(iv, p, a)
   $h = encrypt($key, ZERO128)
-  j0 = iv.append([0x00, 0x00, 0x00, 0x01])
+  j0 = []
+  3.times do
+    j0 << iv.take(4)
+  end
+  j0 << [0x00, 0x00, 0x00, 0x01]
   c = gctr(inc32(j0), p)
 
   u = 16 * (c.length/16.0).ceil - c.length
@@ -153,7 +157,12 @@ def gcm_ad(iv, c_and_t, a)
   c = c_and_t[0]
   t = c_and_t[1]
   $h = encrypt($key, ZERO128)
-  j0 = iv.append([0x00, 0x00, 0x00, 0x01])
+  j0 = []
+  3.times do
+    j0 << iv.take(4)
+  end
+  j0 << [0x00, 0x00, 0x00, 0x01]
+
   p = gctr(inc32(j0), c)
 
   u = 16 * (c.length/16.0).ceil - c.length
@@ -170,6 +179,18 @@ def gcm_ad(iv, c_and_t, a)
   return p
 end
 
+def set_key(hex_str)
+  key = [[], [], [], []]
+  l = [hex_str].pack("H*").bytes
+  4.times do |i|
+    4.times do |j|
+      key[j][i] = l.shift
+    end
+  end
+  $key = key
+  p "key = #{$key}"
+end
+
 def test()
   p "TEST: #{b128_to_i(i_to_b128(2222222222))}" # => 2222222222
   p "TEST: #{s_to_i("aa")}" # => {0110 0000 0110 0000} => 24929
@@ -182,10 +203,17 @@ def test()
   ]
   p "TEST: #{inc32(cb)}" # => [...(zeros)...,[0, 0, 0, 1]]
 
-  iv = [[0x0]*4, [0x0]*4, [0x0]*4]
+  iv = [0x0]*12
   plaintext = [0x01, 0x02, 0x03, 0x04, 0x05]
   data = [0x01]*4
   p "TEST: plaintext= #{gcm_ad(iv, gcm_ae(iv, plaintext, data), data)}" # => [1, 2, 3, 4, 5]
+
+  # iv = [0x0]*16
+  # plaintext = ["607e0b9cd5f7daa30967b4a368c05cac00073b63b8b1fab56b9980fe277fd54c554fa08f173969904b1f1d000ba17128dbc2167ea7"].pack("H*").bytes
+  # data = ["1703030035"].pack("H*").bytes
+  # p data
+  # set_key("2f40100976f03bf427e26d12f3d1e9b5b6529c575d9940bced9e5f035b722c41")
+  # p gcm_ad(iv, plaintext, data)
 end
 
 # test()
