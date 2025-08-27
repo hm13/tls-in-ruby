@@ -340,7 +340,6 @@ class TLS
 
 
     record_list.each do |record|
-      p record
       sequence_number = sequence_number + 1
 
       if record[:type].hex == 22 then # handshake
@@ -365,7 +364,8 @@ class TLS
         nonce = nonce(sequence_number, Keys.get_write_iv(c_hs_traffic))
 
         res = AEAD.decrypt(peer_write_key, nonce, AEAD.additional_data(record), aeadencrypted)
-        p "RESULT = #{res.pack("C*")}"
+        p "CYPHERTEXT = #{aeadencrypted}"
+        p "PLAINTEXT = #{res.pack("C*")}"
 
       else
         puts "Not Implemented record"

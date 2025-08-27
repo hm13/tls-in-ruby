@@ -188,7 +188,6 @@ def set_key(hex_str)
     end
   end
   $key = key
-  p "key = #{$key}"
 end
 
 def test()
