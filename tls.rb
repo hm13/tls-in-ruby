@@ -356,6 +356,7 @@ class TLS
           puts "Not Implemented handshake"
         end
       elsif record[:type].hex == 23 then
+        p record
         aeadencrypted = record[:fragment]
 
         s_hs_traffic = Keys.derive_secret(Keys.handshake_secret, "s hs traffic", transcript)
